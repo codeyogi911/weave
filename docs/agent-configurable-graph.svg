@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="772" viewBox="0 0 1080 772" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#475569"/></marker>
+    <marker id="arG" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#15803d"/></marker>
+    <style>
+      .h{fill:#0f172a;font-weight:700}
+      .lbl{fill:#0f172a;font-size:13px;font-weight:600}
+      .sm{fill:#475569;font-size:11px}
+      .badge{font-size:10.5px;font-weight:700}
+      .flow{stroke:#475569;stroke-width:1.6;fill:none;marker-end:url(#ar)}
+      .cfg{stroke:#15803d;stroke-width:1.7;fill:none;marker-end:url(#arG);stroke-dasharray:5 3}
+      .card{stroke-width:1.4;rx:10}
+    </style>
+  </defs>
+
+  <rect width="1080" height="772" fill="#f8fafc"/>
+  <text x="34" y="40" class="h" font-size="21">The graph as a configurable layer — what the agent tunes vs. what's fixed</text>
+  <text x="34" y="62" class="sm" font-size="13">Heterogeneous connectors → projection → the manifest (ontology · relationships · rules) → buildGraph spine → agent reads & reconfigures it.</text>
+
+  <!-- Legend -->
+  <rect x="742" y="78" width="306" height="58" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="756" y="92" width="14" height="14" rx="3" fill="#dcfce7" stroke="#15803d"/>
+  <text x="778" y="103" class="sm" font-size="11.5">Agent-configurable today (wired, approval-gated)</text>
+  <rect x="756" y="113" width="14" height="14" rx="3" fill="#fef3c7" stroke="#d97706"/>
+  <text x="778" y="124" class="sm" font-size="11.5">Fixed in code — the gap to "agent defines the whole ontology"</text>
+
+  <!-- ================= LEFT: the layer stack ================= -->
+  <!-- AGENT -->
+  <rect class="card" x="40" y="86" width="360" height="46" rx="23" fill="#0f172a"/>
+  <text x="220" y="114" text-anchor="middle" class="lbl" fill="#fff" font-size="15">FounderAgent</text>
+
+  <!-- agent tools row -->
+  <rect class="card" x="40" y="156" width="174" height="74" fill="#dcfce7" stroke="#15803d"/>
+  <text x="127" y="178" text-anchor="middle" class="lbl">READ the graph</text>
+  <text x="127" y="198" text-anchor="middle" class="sm">expand_graph</text>
+  <text x="127" y="214" text-anchor="middle" class="sm">entity · window · close lens</text>
+
+  <rect class="card" x="226" y="156" width="174" height="74" fill="#dcfce7" stroke="#15803d"/>
+  <text x="313" y="178" text-anchor="middle" class="lbl">RECONFIGURE it</text>
+  <text x="313" y="197" text-anchor="middle" class="sm">add_matching_rule</text>
+  <text x="313" y="212" text-anchor="middle" class="sm">adjust_close_check · show_close_setup</text>
+
+  <!-- buildGraph spine -->
+  <rect class="card" x="40" y="256" width="360" height="40" fill="#eef2ff" stroke="#6366f1"/>
+  <text x="220" y="281" text-anchor="middle" class="lbl">buildGraph(nodes, manifest) → clusters · edges · traversal  <tspan class="sm">(@weave/core)</tspan></text>
+
+  <!-- THE MANIFEST (ontology) with 3 tiers -->
+  <rect x="40" y="318" width="360" height="196" rx="12" fill="#ffffff" stroke="#94a3b8" stroke-width="1.6"/>
+  <text x="56" y="340" class="lbl">THE MANIFEST — the spine (plain data)</text>
+
+  <!-- tier 1 node types -->
+  <rect class="card" x="56" y="350" width="328" height="46" fill="#fef3c7" stroke="#d97706"/>
+  <text x="68" y="369" class="lbl">① Node types — the ontology / vocabulary</text>
+  <text x="68" y="386" class="sm">order · invoice · payment · customer · ticket · shipment …  <tspan fill="#b45309" font-weight="700">fixed enum (agent can't add a type)</tspan></text>
+
+  <!-- tier 2 edges -->
+  <rect class="card" x="56" y="402" width="328" height="46" fill="#dcfce7" stroke="#15803d"/>
+  <text x="68" y="421" class="lbl">② Edges — the relationships</text>
+  <text x="68" y="438" class="sm">from→to · relation · sourceField · confidence  <tspan fill="#15803d" font-weight="700">agent: add_matching_rule ✓</tspan></text>
+
+  <!-- tier 3 invariants -->
+  <rect class="card" x="56" y="454" width="328" height="50" fill="#ecfccb" stroke="#65a30d"/>
+  <text x="68" y="473" class="lbl">③ Invariants — the rules</text>
+  <text x="68" y="490" class="sm"><tspan fill="#15803d" font-weight="700">tune: enable / severity / tolerance ✓</tspan> · <tspan fill="#b45309" font-weight="700">logic is fixed (3 shipped checks)</tspan></text>
+
+  <!-- projection -->
+  <rect class="card" x="40" y="538" width="360" height="58" fill="#fef3c7" stroke="#d97706"/>
+  <text x="220" y="560" text-anchor="middle" class="lbl">PROJECTION — records → nodes</text>
+  <text x="220" y="578" text-anchor="middle" class="sm">projectEntitiesToGraphNodes() — hard-coded per entity kind</text>
+  <text x="220" y="591" text-anchor="middle" class="sm" fill="#b45309">(weave's defineSource generalizes exactly this step)</text>
+
+  <!-- connectors -->
+  <text x="40" y="632" class="lbl">HETEROGENEOUS CONNECTORS  <tspan class="sm">— the only door is the canonical shape they normalize to</tspan></text>
+  <g font-size="11" fill="#0f172a">
+    <rect class="card" x="40"  y="644" width="80" height="32" fill="#fff" stroke="#cbd5e1"/><text x="80"  y="664" text-anchor="middle">Shopify</text>
+    <rect class="card" x="128" y="644" width="80" height="32" fill="#fff" stroke="#cbd5e1"/><text x="168" y="664" text-anchor="middle">Amazon</text>
+    <rect class="card" x="216" y="644" width="80" height="32" fill="#fff" stroke="#cbd5e1"/><text x="256" y="664" text-anchor="middle">Zoho</text>
+    <rect class="card" x="304" y="644" width="80" height="32" fill="#fff" stroke="#cbd5e1"/><text x="344" y="664" text-anchor="middle">Shiprocket</text>
+  </g>
+  <text x="40" y="700" class="sm" fill="#b45309">A genuinely new source/entity kind ⇒ new node type ⇒ needs code, not config (today).</text>
+
+  <!-- left-stack flow arrows (data flows UP) -->
+  <line x1="220" y1="538" x2="220" y2="516" class="flow"/>
+  <line x1="220" y1="318" x2="220" y2="298" class="flow"/>
+  <line x1="220" y1="256" x2="220" y2="232" class="flow"/>
+  <line x1="127" y1="156" x2="127" y2="134" class="flow"/>
+  <text x="232" y="312" class="sm">project</text>
+  <text x="232" y="250" class="sm">build</text>
+  <text x="138" y="150" class="sm">read</text>
+  <line x1="80" y1="644" x2="80" y2="598" class="flow"/>
+
+  <!-- ================= RIGHT: the agent tuning loop ================= -->
+  <text x="600" y="172" class="h" font-size="15">The agent tuning loop — how the spine gets reshaped</text>
+  <text x="600" y="192" class="sm">Implemented &amp; wired (ADR 0074). Every close reloads the tenant's config.</text>
+
+  <rect class="card" x="600" y="208" width="208" height="52" fill="#dcfce7" stroke="#15803d"/>
+  <text x="704" y="230" text-anchor="middle" class="lbl">1 · Agent proposes</text>
+  <text x="704" y="248" text-anchor="middle" class="sm">"credit notes credit the order directly"</text>
+
+  <rect class="card" x="840" y="208" width="208" height="52" fill="#fff" stroke="#cbd5e1"/>
+  <text x="944" y="230" text-anchor="middle" class="lbl">2 · Founder approves</text>
+  <text x="944" y="248" text-anchor="middle" class="sm">inline approval card</text>
+
+  <rect class="card" x="840" y="300" width="208" height="58" fill="#fff" stroke="#cbd5e1"/>
+  <text x="944" y="322" text-anchor="middle" class="lbl">3 · Stored as facts</text>
+  <text x="944" y="340" text-anchor="middle" class="sm">graph.edge.* / graph.invariant.*</text>
+  <text x="944" y="353" text-anchor="middle" class="sm">(Business Repo)</text>
+
+  <rect class="card" x="600" y="300" width="208" height="58" fill="#eef2ff" stroke="#6366f1"/>
+  <text x="704" y="322" text-anchor="middle" class="lbl">4 · mergeManifest</text>
+  <text x="704" y="340" text-anchor="middle" class="sm">tenant override ⊕ shipped default</text>
+  <text x="704" y="353" text-anchor="middle" class="sm">→ next buildGraph</text>
+
+  <!-- loop arrows -->
+  <line x1="808" y1="234" x2="838" y2="234" class="cfg"/>
+  <line x1="944" y1="260" x2="944" y2="298" class="cfg"/>
+  <line x1="840" y1="330" x2="810" y2="330" class="cfg"/>
+  <path d="M652,300 C652,278 600,276 575,276 L575,470 C575,486 460,490 402,491" class="cfg"/>
+  <text x="500" y="466" class="sm" fill="#15803d">reshapes the spine</text>
+
+  <!-- the gap callout -->
+  <rect x="600" y="396" width="448" height="150" rx="10" fill="#fffbeb" stroke="#d97706"/>
+  <text x="616" y="418" class="lbl" fill="#92400e">The gap to your vision (agent graphifies ANYTHING)</text>
+  <text x="616" y="440" class="sm">Today the agent tunes a <tspan font-weight="700">slice</tspan> — edges &amp; rule thresholds — inside a</text>
+  <text x="616" y="456" class="sm">fixed business ontology. To let it define the whole graph it also needs to:</text>
+  <text x="616" y="478" class="sm">• define <tspan font-weight="700">node types</tspan> (the vocabulary) — not a locked enum</text>
+  <text x="616" y="496" class="sm">• define <tspan font-weight="700">sources / projection</tspan> generically — weave's defineSource, agent-driven</text>
+  <text x="616" y="514" class="sm">• declare <tspan font-weight="700">new invariants</tspan>, not only tune the 3 shipped ones</text>
+  <text x="616" y="534" class="sm" fill="#92400e">weave already allows all of this as DATA — node types are just strings. The lock is an Ops Room product choice, not a weave limit.</text>
+
+  <text x="600" y="724" class="sm">Ops Room fixes the ontology on purpose — the business vocabulary IS the vertical's moat. The OSS package inverts that: make the ontology itself</text>
+  <text x="600" y="740" class="sm">agent-definable, so an agent can stand a graph over whatever sources a company already has.</text>
+</svg>

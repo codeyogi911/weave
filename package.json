@@ -1,0 +1,65 @@
+{
+  "name": "@weave/core",
+  "version": "0.1.0",
+  "description": "Stitch records from heterogeneous sources — databases, APIs, files — into one connected, traversable graph your code and your agents read as a single thing. Pure TypeScript, zero dependencies, no database.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "graph",
+    "entity-resolution",
+    "knowledge-graph",
+    "ontology",
+    "agents",
+    "ai",
+    "mcp",
+    "data-integration",
+    "connected-components",
+    "typescript"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codeyogi911/weave.git"
+  },
+  "homepage": "https://github.com/codeyogi911/weave#readme",
+  "bugs": {
+    "url": "https://github.com/codeyogi911/weave/issues"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "example": "tsx examples/agent-360/run.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsup": "^8.3.0",
+    "tsx": "^4.22.3",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
