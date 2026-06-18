@@ -1,6 +1,6 @@
 {
-  "name": "@weave/core",
-  "version": "0.1.0",
+  "name": "@codeyogi911/weave",
+  "version": "0.1.1",
   "description": "Stitch records from heterogeneous sources — databases, APIs, files — into one connected, traversable graph your code and your agents read as a single thing. Pure TypeScript, zero dependencies, no database.",
   "type": "module",
   "license": "MIT",
@@ -44,7 +44,7 @@
   ],
   "sideEffects": false,
   "publishConfig": {
-    "access": "public"
+    "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
     "build": "tsup",

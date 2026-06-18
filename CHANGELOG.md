@@ -20,8 +20,16 @@ All notable changes to this project are documented here. The format follows
 - Pure `graphHealth` report + structural invariants.
 - Agent skill (`skills/weave/SKILL.md`) for wiring weave onto real sources.
 - Runnable five-source example and architecture diagrams.
-- `prepare` build script so the package can be consumed directly from a git ref
-  (`git+https://…/weave.git#<tag>`) without npm — installs build `dist/` on the fly.
+- `prepare` build script so the package can also be consumed directly from a git ref
+  (`git+https://…/weave.git#<tag>`) without a registry — builds `dist/` on the fly.
+- Published privately to **GitHub Packages** as `@codeyogi911/weave` (scope must match
+  the repo owner). `release.yml` builds + publishes on a `v*` tag using the workflow's
+  `GITHUB_TOKEN` — no manual npm token. Consumers point the `@codeyogi911` scope at
+  `https://npm.pkg.github.com` with a `read:packages` token.
 
-> Note: the npm package name/scope is provisional until the npm scope is claimed.
-> Until then, consume from the git repo via the `prepare` build.
+### Changed
+- Package renamed `@weave/core` → `@codeyogi911/weave` for GitHub Packages (scope =
+  account owner). The public name/scope remains provisional.
+
+> Note: the package name/scope is provisional. While in private development it ships to
+> GitHub Packages under the owner scope; it may be renamed when a public scope is claimed.

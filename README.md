@@ -5,7 +5,11 @@
 Pure TypeScript. Zero dependencies. No database, no server, no graph store. It runs anywhere JS runs — Node, Bun, Deno, the browser, a Cloudflare Worker isolate. A few config steps and your graph is ready.
 
 ```bash
-npm install @weave/core   # package name/scope provisional while in private development
+# Published privately to GitHub Packages while in early development.
+# Point the @codeyogi911 scope at GitHub Packages (one-time, in your project's .npmrc):
+#   @codeyogi911:registry=https://npm.pkg.github.com
+#   //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}   # a token with read:packages
+npm install @codeyogi911/weave
 ```
 
 ![weave architecture](docs/architecture.svg)
@@ -61,7 +65,7 @@ You describe **where records come from** (a source) and **how types connect** (a
 **1. Shape your records into nodes.** A source is a declarative field-map; each field is a property name or an accessor. You fetch the records however you like (Drizzle, `fetch`, `fs`) and hand them over.
 
 ```ts
-import { defineSource } from "@weave/core";
+import { defineSource } from "@codeyogi911/weave";
 
 const orders = defineSource<OrderRow>({
   type: "order",
@@ -83,7 +87,7 @@ const payments = defineSource<PaymentRow>({
 **2. Declare how the types connect** — plain data, not code:
 
 ```ts
-import { defineManifest } from "@weave/core";
+import { defineManifest } from "@codeyogi911/weave";
 
 const manifest = defineManifest([
   { from: "order",   to: "customer", relation: "placed_by", sourceField: "customerEmail", confidence: 1 },
@@ -94,7 +98,7 @@ const manifest = defineManifest([
 **3. Weave and read.**
 
 ```ts
-import { weave, readEntity } from "@weave/core";
+import { weave, readEntity } from "@codeyogi911/weave";
 
 const graph = weave(
   [
@@ -116,7 +120,7 @@ That's it. No infrastructure was stood up.
 `createToolkit` turns the graph into a handful of framework-neutral tools whose descriptions name *your* node types and relations, so a model knows exactly what it can read and how things connect.
 
 ```ts
-import { createToolkit } from "@weave/core";
+import { createToolkit } from "@codeyogi911/weave";
 
 const tools = createToolkit(graph, manifest);
 // → read_entity · find_entity · expand_entity · graph_health
@@ -140,7 +144,7 @@ weave ships an **agent skill** at [`skills/weave/SKILL.md`](skills/weave/SKILL.m
 ```bash
 # make it discoverable to your agent (Claude Code example)
 mkdir -p .claude/skills/weave
-cp node_modules/@weave/core/skills/weave/SKILL.md .claude/skills/weave/
+cp node_modules/@codeyogi911/weave/skills/weave/SKILL.md .claude/skills/weave/
 ```
 
 Then ask: *"wire weave onto my Postgres orders + Stripe payments."*

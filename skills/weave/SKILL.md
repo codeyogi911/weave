@@ -1,20 +1,20 @@
 ---
 name: weave
-description: Wire the @weave/core package into a project — build an in-memory graph over heterogeneous sources (databases, APIs, files) and generate an agent toolkit from it. Use when a user wants to stitch records from multiple systems into one connected graph, resolve entities across sources that don't share an id scheme, give an agent a "read this entity and everything linked to it" tool, or set up defineSource / manifest / createToolkit. Triggers on @weave/core, defineSource, buildGraph, GraphManifest, createToolkit, or "graph over my sources".
+description: Wire the @codeyogi911/weave package into a project — build an in-memory graph over heterogeneous sources (databases, APIs, files) and generate an agent toolkit from it. Use when a user wants to stitch records from multiple systems into one connected graph, resolve entities across sources that don't share an id scheme, give an agent a "read this entity and everything linked to it" tool, or set up defineSource / manifest / createToolkit. Triggers on @codeyogi911/weave, defineSource, buildGraph, GraphManifest, createToolkit, or "graph over my sources".
 metadata:
-  short-description: Wire @weave/core onto a project's real sources
+  short-description: Wire @codeyogi911/weave onto a project's real sources
 ---
 
 # Wiring weave onto real sources
 
-`@weave/core` joins records from many systems into one in-memory graph you can cluster, traverse, and hand to an agent as a toolkit. It is pure and deterministic: **you fetch the records however you like, weave joins them.** No database, no server, no I/O inside weave.
+`@codeyogi911/weave` joins records from many systems into one in-memory graph you can cluster, traverse, and hand to an agent as a toolkit. It is pure and deterministic: **you fetch the records however you like, weave joins them.** No database, no server, no I/O inside weave.
 
 Your job when this skill loads: turn the user's actual sources into a working graph + toolkit. Do it in this order — do not skip the inventory step, it prevents the one mistake that matters.
 
 ## 0. Confirm install
 
 ```bash
-npm install @weave/core
+npm install @codeyogi911/weave
 ```
 
 ## 1. Inventory the sources and their join keys FIRST
@@ -31,7 +31,7 @@ The critical column is the third one. Systems rarely share an id scheme: one hol
 Each field is a property name (string) or an accessor `(record) => value`. `links` are the outgoing foreign keys, keyed by the name your manifest will reference.
 
 ```ts
-import { defineSource } from "@weave/core";
+import { defineSource } from "@codeyogi911/weave";
 
 const orders = defineSource<OrderRow>({
   type: "order",
@@ -53,7 +53,7 @@ Rules:
 The manifest is plain data: how types connect. `defineManifest` infers node types from the edges.
 
 ```ts
-import { defineManifest } from "@weave/core";
+import { defineManifest } from "@codeyogi911/weave";
 
 const manifest = defineManifest([
   { from: "order",   to: "customer", relation: "placed_by", sourceField: "customerEmail", confidence: 1 },
@@ -71,7 +71,7 @@ If you feed verdicts from a fuzzy matcher / ML model, pass them as `buildGraph(.
 ## 4. Weave, then VERIFY before trusting it
 
 ```ts
-import { weave, graphHealth } from "@weave/core";
+import { weave, graphHealth } from "@codeyogi911/weave";
 
 const graph = weave(
   [
@@ -95,7 +95,7 @@ List `identityTypes` for every type that represents a unique real-world entity (
 ## 5. Generate the agent toolkit and wire it in
 
 ```ts
-import { createToolkit } from "@weave/core";
+import { createToolkit } from "@codeyogi911/weave";
 
 const tools = createToolkit(() => graph, manifest, { identityTypes: ["customer"] });
 // → read_entity · find_entity · expand_entity · graph_health

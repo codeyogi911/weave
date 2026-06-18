@@ -1,6 +1,6 @@
 # Agent instructions for weave
 
-You are working with **weave** (`@weave/core`) — a pure TypeScript library that stitches records from heterogeneous sources (databases, APIs, files) into one in-memory, traversable graph and generates a framework-neutral agent toolkit from it. Zero runtime dependencies. No database, no server, no I/O inside core.
+You are working with **weave** (`@codeyogi911/weave`) — a pure TypeScript library that stitches records from heterogeneous sources (databases, APIs, files) into one in-memory, traversable graph and generates a framework-neutral agent toolkit from it. Zero runtime dependencies. No database, no server, no I/O inside core.
 
 ## Before you act
 
