@@ -1,0 +1,40 @@
+{
+  "name": "@weave/core",
+  "version": "0.0.0",
+  "description": "Weave heterogeneous records from databases, APIs, and files into one connected, traversable graph — declaratively, in pure TypeScript, with zero infrastructure. Built so agents can read across sources as one thing.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "graph",
+    "entity-resolution",
+    "knowledge-graph",
+    "agents",
+    "ai",
+    "data-integration",
+    "connected-components",
+    "typescript"
+  ],
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "example": "tsx examples/agent-360/run.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
+  }
+}

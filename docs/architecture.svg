@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="430" viewBox="0 0 980 430" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#475569"/>
+    </marker>
+    <style>
+      .lbl{fill:#0f172a;font-size:13px;font-weight:600}
+      .sub{fill:#64748b;font-size:11px}
+      .step{fill:#2563eb;font-size:11px;font-weight:700;letter-spacing:.04em}
+      .edge{stroke:#475569;stroke-width:1.6;fill:none;marker-end:url(#arrow)}
+      .fuzzy{stroke:#d39e00;stroke-width:1.6;fill:none;stroke-dasharray:4 3;marker-end:url(#arrow)}
+      .card{fill:#ffffff;stroke:#cbd5e1;stroke-width:1.4;rx:10}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="980" height="430" fill="#f8fafc"/>
+  <text x="32" y="40" class="lbl" font-size="20">weave</text>
+  <text x="120" y="40" class="sub" font-size="13">heterogeneous sources → one connected graph → an agent toolkit</text>
+
+  <!-- Sources -->
+  <text x="40" y="78" class="step">1 · SOURCES</text>
+  <g>
+    <rect class="card" x="40" y="90" width="150" height="34" rx="10"/><text x="56" y="112" class="lbl">Postgres / DB</text>
+    <rect class="card" x="40" y="132" width="150" height="34" rx="10"/><text x="56" y="154" class="lbl">Shopify API</text>
+    <rect class="card" x="40" y="174" width="150" height="34" rx="10"/><text x="56" y="196" class="lbl">Stripe API</text>
+    <rect class="card" x="40" y="216" width="150" height="34" rx="10"/><text x="56" y="238" class="lbl">CSV / files</text>
+    <rect class="card" x="40" y="258" width="150" height="34" rx="10"/><text x="56" y="280" class="lbl">remote service</text>
+  </g>
+
+  <!-- defineSource -->
+  <text x="250" y="78" class="step">2 · PROJECT</text>
+  <rect class="card" x="250" y="150" width="170" height="92" rx="10" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="266" y="180" class="lbl">defineSource()</text>
+  <text x="266" y="200" class="sub">field-map → Node</text>
+  <text x="266" y="218" class="sub">ref · label · links</text>
+  <text x="266" y="234" class="sub">(no shared id needed)</text>
+
+  <!-- buildGraph / Graph -->
+  <text x="470" y="78" class="step">3 · WEAVE</text>
+  <rect class="card" x="470" y="120" width="210" height="190" rx="12" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="486" y="146" class="lbl">buildGraph(manifest)</text>
+  <text x="486" y="166" class="sub">resolve edges (ref ∥ label)</text>
+  <text x="486" y="182" class="sub">connected-component clusters</text>
+
+  <!-- mini cluster glyph -->
+  <circle cx="520" cy="232" r="9" fill="#16a34a"/><text x="512" y="258" class="sub">order</text>
+  <circle cx="575" cy="212" r="9" fill="#0ea5e9"/><text x="560" y="200" class="sub">customer</text>
+  <circle cx="575" cy="262" r="9" fill="#8b5cf6"/><text x="566" y="288" class="sub">payment</text>
+  <circle cx="630" cy="232" r="9" fill="#f59e0b"/><text x="612" y="258" class="sub">ticket</text>
+  <line x1="520" y1="232" x2="575" y2="212" class="edge"/>
+  <line x1="520" y1="232" x2="575" y2="262" class="edge"/>
+  <line x1="520" y1="232" x2="630" y2="232" class="edge"/>
+
+  <!-- toolkit -->
+  <text x="730" y="78" class="step">4 · TOOLKIT</text>
+  <rect class="card" x="730" y="120" width="210" height="150" rx="12" fill="#fef9f0" stroke="#fcd34d"/>
+  <text x="746" y="146" class="lbl">createToolkit()</text>
+  <text x="746" y="168" class="sub">read_entity</text>
+  <text x="746" y="186" class="sub">find_entity</text>
+  <text x="746" y="204" class="sub">expand_entity</text>
+  <text x="746" y="222" class="sub">graph_health</text>
+  <text x="746" y="248" class="sub">→ AI SDK / MCP tools</text>
+
+  <!-- agent -->
+  <rect class="card" x="730" y="300" width="210" height="48" rx="24" fill="#0f172a" stroke="#0f172a"/>
+  <text x="800" y="329" class="lbl" fill="#ffffff">your agent</text>
+
+  <!-- flow arrows -->
+  <line x1="192" y1="196" x2="248" y2="196" class="edge"/>
+  <line x1="422" y1="196" x2="468" y2="215" class="edge"/>
+  <line x1="682" y1="200" x2="728" y2="190" class="edge"/>
+  <line x1="835" y1="270" x2="835" y2="298" class="edge"/>
+
+  <!-- fuzzy guard note -->
+  <line x1="630" y1="232" x2="660" y2="300" class="fuzzy"/>
+  <circle cx="665" cy="312" r="8" fill="#fde68a" stroke="#d39e00"/>
+  <text x="470" y="335" class="sub">solid = deterministic (clusters)&#160;&#160;·&#160;&#160;<tspan fill="#b8860b">dashed = fuzzy &lt;1 (traversable, never merges)</tspan></text>
+
+  <text x="40" y="400" class="sub">pure TypeScript · zero dependencies · no database/server · runs in Node, Bun, Deno, the browser, or an edge isolate</text>
+</svg>
