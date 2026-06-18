@@ -53,6 +53,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "example": "tsx examples/agent-360/run.ts",
+    "prepare": "tsup",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {

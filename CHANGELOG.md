@@ -20,5 +20,8 @@ All notable changes to this project are documented here. The format follows
 - Pure `graphHealth` report + structural invariants.
 - Agent skill (`skills/weave/SKILL.md`) for wiring weave onto real sources.
 - Runnable five-source example and architecture diagrams.
+- `prepare` build script so the package can be consumed directly from a git ref
+  (`git+https://…/weave.git#<tag>`) without npm — installs build `dist/` on the fly.
 
 > Note: the npm package name/scope is provisional until the npm scope is claimed.
+> Until then, consume from the git repo via the `prepare` build.
