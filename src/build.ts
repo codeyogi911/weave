@@ -6,8 +6,8 @@
  * Pure + deterministic. This is the single graph builder.
  */
 
-import { DETERMINISTIC_CONFIDENCE } from "./manifest";
-import { type Cluster, type EdgeRule, type Graph, type Manifest, type Node, norm, type ResolvedEdge } from "./types";
+import { DETERMINISTIC_CONFIDENCE } from "./manifest.js";
+import { type Cluster, type EdgeRule, type Graph, type Manifest, type Node, norm, type ResolvedEdge } from "./types.js";
 
 class UnionFind {
   private parent = new Map<string, string>();

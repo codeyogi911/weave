@@ -1,6 +1,6 @@
 {
-  "name": "@weave/core",
-  "version": "0.0.0",
+  "name": "@shashwatjain511/weave",
+  "version": "0.1.0",
   "description": "Weave heterogeneous records from databases, APIs, and files into one connected, traversable graph — declaratively, in pure TypeScript, with zero infrastructure. Built so agents can read across sources as one thing.",
   "type": "module",
   "license": "MIT",
@@ -14,22 +14,39 @@
     "connected-components",
     "typescript"
   ],
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codeyogi911/weave.git"
+  },
+  "bugs": {
+    "url": "https://github.com/codeyogi911/weave/issues"
+  },
+  "homepage": "https://github.com/codeyogi911/weave#readme",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "files": [
-    "src",
-    "skills",
+    "dist",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
     "example": "tsx examples/agent-360/run.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm run clean && pnpm run build && pnpm run test"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",

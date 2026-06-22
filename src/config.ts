@@ -16,7 +16,7 @@
  * entity kind out of band. Pure + deterministic: config in, manifest override out.
  */
 
-import type { EdgeRule, Manifest, NodeType } from "./types";
+import type { EdgeRule, Manifest, NodeType } from "./types.js";
 
 /** Default config-key prefix for a tuned edge: `weave.edge.<id>`. */
 export const EDGE_CONFIG_PREFIX = "weave.edge.";

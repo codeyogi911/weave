@@ -7,10 +7,10 @@
  * compact, source-blind object instead of N disconnected tool results.
  */
 
-import { type BuildOptions, buildGraph, clusterOf } from "./build";
-import type { Graph, Manifest, Node, ResolvedEdge } from "./types";
-import { norm } from "./types";
-import type { Source } from "./source";
+import { type BuildOptions, buildGraph, clusterOf } from "./build.js";
+import type { Graph, Manifest, Node, ResolvedEdge } from "./types.js";
+import { norm } from "./types.js";
+import type { Source } from "./source.js";
 
 export interface SourceInput<T> {
   source: Source<T>;

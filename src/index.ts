@@ -4,12 +4,12 @@
  * Stitch records from many heterogeneous sources into one connected graph you can
  * cluster and traverse. Pure, dependency-free, runs anywhere JS runs.
  */
-export * from "./types";
-export * from "./manifest";
-export * from "./build";
-export * from "./source";
-export * from "./compile";
-export * from "./config";
-export * from "./health";
-export * from "./weave";
-export * from "./toolkit";
+export * from "./types.js";
+export * from "./manifest.js";
+export * from "./build.js";
+export * from "./source.js";
+export * from "./compile.js";
+export * from "./config.js";
+export * from "./health.js";
+export * from "./weave.js";
+export * from "./toolkit.js";

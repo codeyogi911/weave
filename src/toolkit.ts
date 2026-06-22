@@ -13,10 +13,10 @@
  * `tool()`, an MCP tool, or your own dispatcher. Weave itself stays dependency-free.
  */
 
-import { expand } from "./build";
-import { graphHealth, type GraphHealthOptions } from "./health";
-import type { Graph, Manifest } from "./types";
-import { findNode, readEntity } from "./weave";
+import { expand } from "./build.js";
+import { graphHealth, type GraphHealthOptions } from "./health.js";
+import type { Graph, Manifest } from "./types.js";
+import { findNode, readEntity } from "./weave.js";
 
 /** A minimal JSON-Schema object (the subset every tool framework accepts). */
 export interface JSONSchema {

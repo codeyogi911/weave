@@ -10,8 +10,8 @@
  * looks identical wherever it shows up.
  */
 
-import { DETERMINISTIC_CONFIDENCE } from "./manifest";
-import type { Graph } from "./types";
+import { DETERMINISTIC_CONFIDENCE } from "./manifest.js";
+import type { Graph } from "./types.js";
 
 export interface ClusterSummary {
   id: string;

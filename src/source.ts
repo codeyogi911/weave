@@ -12,7 +12,7 @@
  * fetch, fs), then hand them to `project`.
  */
 
-import type { Node, NodeType, SourceKind } from "./types";
+import type { Node, NodeType, SourceKind } from "./types.js";
 
 /** A field is read either by property name or by an accessor function. */
 export type Selector<T> = keyof T | ((record: T) => unknown);

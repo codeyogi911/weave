@@ -1,6 +1,6 @@
-import { type BuildOptions, buildGraph, indexNodesByType, resolveManifestLinks } from "./build";
-import type { Graph, Manifest, Node, SourceKind, SourceProvenance } from "./types";
-import type { SourceInput } from "./weave";
+import { type BuildOptions, buildGraph, indexNodesByType, resolveManifestLinks } from "./build.js";
+import type { Graph, Manifest, Node, SourceKind, SourceProvenance } from "./types.js";
+import type { SourceInput } from "./weave.js";
 
 export interface SourceDiagnostic {
   source: string;

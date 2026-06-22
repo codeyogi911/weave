@@ -9,7 +9,7 @@
  * whichever resolves wins. There is no penalty for an edge rule that never matches.
  */
 
-import type { EdgeRule, Manifest, NodeType } from "./types";
+import type { EdgeRule, Manifest, NodeType } from "./types.js";
 
 /** Edges at/above this confidence form connected-component clusters. Below it, the
  *  edge is recorded for traversal but never auto-merges two clusters. */
