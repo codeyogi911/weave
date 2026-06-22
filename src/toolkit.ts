@@ -13,10 +13,39 @@
  * `tool()`, an MCP tool, or your own dispatcher. Weave itself stays dependency-free.
  */
 
-import { expand } from "./build.js";
-import { graphHealth, type GraphHealthOptions } from "./health.js";
-import type { Graph, Manifest } from "./types.js";
+import { buildGraph, expand, indexNodesByType, resolveManifestLinks } from "./build.js";
+import { validateStoredEdge } from "./config.js";
+import { checkGraphInvariants, graphHealth, type GraphHealthOptions, type InvariantFinding } from "./health.js";
+import { DETERMINISTIC_CONFIDENCE, mergeManifest } from "./manifest.js";
+import type { EdgeRule, Graph, Manifest } from "./types.js";
 import { findNode, readEntity } from "./weave.js";
+
+/** A value that may be returned directly or as a promise — sinks can be sync or async. */
+export type MaybePromise<T> = T | Promise<T>;
+
+/**
+ * Consumer-supplied persistence sink for a tuned edge. Weave never owns storage: you
+ * receive a fully-VALIDATED `EdgeRule` and persist it however you like (a config row,
+ * a KV value, a JSON blob keyed under `weave.edge.*`). Return whether it committed
+ * (and an optional note). The fact then applies on the NEXT graph build via
+ * `manifestOverrideFromConfig` → `mergeManifest`; it does not mutate the live graph.
+ */
+export type TuneEdgeSink = (edge: EdgeRule) => MaybePromise<{ committed: boolean; note?: string }>;
+
+/** What `diagnose` attaches to each invariant finding: a committable fix or advice. */
+export interface Remedy {
+  /** `tune_edge` → `edgeFact` is a ready-to-commit proposal; `advisory` → manual fix. */
+  kind: "tune_edge" | "advisory";
+  /** Concrete, human-readable guidance on how to repair this finding. */
+  note: string;
+  /** A proposal that passes `parseStoredEdge` and can be handed straight to `tune_edge`. */
+  edgeFact?: EdgeRule;
+}
+
+/** An invariant finding enriched with a proposed remedy — what `diagnose` returns. */
+export interface EnrichedFinding extends InvariantFinding {
+  remedy: Remedy;
+}
 
 /** A minimal JSON-Schema object (the subset every tool framework accepts). */
 export interface JSONSchema {
@@ -39,6 +68,14 @@ export interface ToolkitOptions extends GraphHealthOptions {
   namePrefix?: string;
   /** Override the noun used in descriptions (default "entity"). */
   entityNoun?: string;
+  /**
+   * Persistence sink for tuned edges. When provided, the toolkit additionally emits
+   * the `tune_edge` (repair affordance) and `diagnose` (detect → propose) tools,
+   * turning the read-only graph into a detect → propose → repair loop. When ABSENT,
+   * the toolkit emits exactly the four read-only tools — existing consumers are
+   * byte-for-byte unaffected.
+   */
+  onTuneEdge?: TuneEdgeSink;
 }
 
 /** A live graph, or a function returning one (so tools see fresh data each call). */
@@ -53,6 +90,140 @@ function relationsByType(manifest: Manifest): string {
     .map((e) => `  • ${e.from} —${e.relation}→ ${e.to}${e.confidence < 1 ? ` (fuzzy ${e.confidence})` : ""}`)
     .join("\n");
   return lines || "  (no edges declared)";
+}
+
+/** A confidence strictly below the clustering threshold (so a demoted rule no longer
+ *  auto-merges) and still inside `parseStoredEdge`'s valid `(0, 1]` range. */
+function demotedConfidence(threshold: number): number {
+  if (!(threshold > 0)) return 0.5; // non-positive / NaN threshold: any (0, 1] value reads as fuzzy
+  if (threshold > 1) return 1; // threshold above the valid range: 1 is still strictly below it
+  return threshold / 2; // threshold in (0, 1]: strictly below it and > 0
+}
+
+/**
+ * Candidate manifest rules that COULD be responsible for an identity collision: a
+ * deterministic rule whose relation + endpoint types match a deterministic edge
+ * incident to a colliding node. This is only a shortlist — a `ResolvedEdge` carries no
+ * rule/`sourceField` provenance and `buildGraph` also admits non-manifest deterministic
+ * `extraEdges`, so a match here does NOT prove the rule caused the merge. Each candidate
+ * is verified by SIMULATION before it is ever proposed as committable.
+ */
+function candidateRulesForCollision(
+  graph: Graph,
+  manifest: Manifest,
+  finding: InvariantFinding,
+  threshold: number,
+): EdgeRule[] {
+  const candidates = new Map<string, EdgeRule>();
+  for (const ref of finding.refs) {
+    const idNode = graph.nodesByRef.get(ref);
+    if (!idNode) continue;
+    for (const e of graph.adjacency.get(ref) ?? []) {
+      if (e.confidence < threshold) continue; // only deterministic edges merge clusters
+      const otherRef = e.from === ref ? e.to : e.from;
+      const otherNode = graph.nodesByRef.get(otherRef);
+      if (!otherNode) continue;
+      for (const rule of manifest.edges) {
+        if (rule.confidence < threshold || rule.relation !== e.relation) continue;
+        const forward = rule.from === otherNode.type && rule.to === idNode.type;
+        const backward = rule.from === idNode.type && rule.to === otherNode.type;
+        if (forward || backward) candidates.set(`${rule.from}|${rule.to}|${rule.relation}|${rule.sourceField}`, rule);
+      }
+    }
+  }
+  return [...candidates.values()];
+}
+
+/**
+ * Prove (don't guess) that demoting `rule` clears THIS collision. Rebuild the graph
+ * from the SAME nodes with the rule demoted below threshold, PRESERVING every other
+ * deterministic edge currently in the graph that the demoted manifest doesn't itself
+ * redraw — crucially the non-manifest `extraEdges` (an external matcher's verdicts),
+ * which `Graph` doesn't retain but which still merge on a real rebuild. Returns the
+ * demoted `EdgeRule` only if the colliding refs are no longer co-clustered; else null.
+ */
+function verifiedDemotion(
+  graph: Graph,
+  manifest: Manifest,
+  finding: InvariantFinding,
+  rule: EdgeRule,
+  threshold: number,
+  opts: GraphHealthOptions,
+): EdgeRule | null {
+  const demoted: EdgeRule = { ...rule, confidence: demotedConfidence(threshold) };
+  const override = mergeManifest(manifest, { edges: [demoted] });
+
+  // Which (from→to, relation) does the OVERRIDE manifest itself redraw over these nodes?
+  // Everything else deterministic in the live graph is a non-manifest edge we must keep.
+  const redrawn = new Set<string>();
+  const index = indexNodesByType(graph.nodes);
+  resolveManifestLinks(graph.nodes, override, index, (fromRef, toRef, r) => {
+    redrawn.add(`${fromRef}->${toRef}->${r.relation}`);
+  });
+  const preservedExtra = graph.edges.filter(
+    (e) => e.confidence >= threshold && !redrawn.has(`${e.from}->${e.to}->${e.relation}`),
+  );
+
+  const rebuilt = buildGraph(graph.nodes, override, { extraEdges: preservedExtra, clusterThreshold: threshold });
+  // Honest check: re-run the SAME invariants and confirm no identity collision still
+  // references these exact refs — the specific finding is gone, not merely fewer.
+  const collidingRefs = new Set(finding.refs);
+  const cleared = !checkGraphInvariants(rebuilt, opts).some(
+    (f) => f.code === "identity_collision" && f.refs.some((r) => collidingRefs.has(r)),
+  );
+  return cleared ? demoted : null;
+}
+
+/** Propose a remedy for one invariant finding. A finding is committable (`kind:
+ *  "tune_edge"` with an `edgeFact`) ONLY when SIMULATING that edge-fact provably clears
+ *  it — never on a heuristic match — so a collision actually caused by an `extraEdges`
+ *  edge is never "fixed" by a no-op rule demotion. Everything else is honest advisory. */
+function remedyForFinding(finding: InvariantFinding, graph: Graph, manifest: Manifest, opts: GraphHealthOptions): Remedy {
+  const threshold = opts.clusterThreshold ?? DETERMINISTIC_CONFIDENCE;
+  switch (finding.code) {
+    case "identity_collision": {
+      for (const rule of candidateRulesForCollision(graph, manifest, finding, threshold)) {
+        const edgeFact = verifiedDemotion(graph, manifest, finding, rule, threshold, opts);
+        if (edgeFact) {
+          return {
+            kind: "tune_edge",
+            note:
+              `A deterministic rule (${rule.from} —${rule.relation}→ ${rule.to}, via links.${rule.sourceField}) merged ` +
+              `distinct "${graph.nodesByRef.get(finding.refs[0] ?? "")?.type ?? "identity"}" entities into one cluster. ` +
+              `Verified by simulation: committing this edgeFact demotes that rule to confidence ${edgeFact.confidence} ` +
+              `(fuzzy — recorded for traversal, never auto-merges) and the false merge clears on the next build. It ` +
+              `overrides the shipped rule by from|to|relation|sourceField.`,
+            edgeFact,
+          };
+        }
+      }
+      return {
+        kind: "advisory",
+        note:
+          `Distinct identity entities share a deterministic cluster, but no single manifest-rule demotion clears it ` +
+          `in simulation — the merge comes from a non-manifest edge (e.g. an extraEdges verdict), multiple rules, or ` +
+          `a different deterministic source. An additive edge-fact cannot honestly fix this; review the join that ` +
+          `over-merges ${finding.refs.join(", ")} (or the external matcher that emitted the edge) by hand.`,
+      };
+    }
+    case "edge_dangling_endpoint":
+      return {
+        kind: "advisory",
+        note:
+          `An edge points at a node that isn't in the graph — a stale reference, or a source that failed to ` +
+          `project. No additive edge-fact can fix this: re-run the missing source's projection, or drop the stale ` +
+          `reference at projection. Dangling endpoint(s): ${finding.refs.join(", ")}.`,
+      };
+    case "duplicate_ref":
+      return {
+        kind: "advisory",
+        note:
+          `The same entity (ref) was projected more than once. Dedupe at projection — emit one Node per ref before ` +
+          `building. An edge-fact cannot fix a duplicated node. Duplicated ref(s): ${finding.refs.join(", ")}.`,
+      };
+    default:
+      return { kind: "advisory", note: "Unrecognized finding — inspect the graph manually." };
+  }
 }
 
 /**
@@ -149,5 +320,95 @@ export function createToolkit(graph: GraphSource, manifest: Manifest, opts: Tool
     execute: () => graphHealth(resolveGraph(graph), opts),
   };
 
-  return [readEntityTool, findTool, expandTool, healthTool];
+  const baseTools = [readEntityTool, findTool, expandTool, healthTool];
+
+  // Read-only by default: no persistence sink → exactly the four read tools above.
+  const onTuneEdge = opts.onTuneEdge;
+  if (!onTuneEdge) return baseTools;
+
+  // Phase 1 — repair affordance. Validates a proposed join against the manifest, then
+  // persists it through the consumer's sink. The fact applies on the NEXT build.
+  const tuneEdgeTool: Tool = {
+    name: `${p}tune_edge`,
+    description:
+      `Propose a tuned join (an edge rule) for this graph: declare that nodes of one type link to another via a ` +
+      `named relation, resolved from a source field. The proposal is validated against the manifest's node types ` +
+      `and a confidence in (0, 1] BEFORE anything is persisted; on success it is saved as a tuned-edge fact and ` +
+      `merges into the manifest on the NEXT graph build — it does NOT mutate the live in-memory graph right now. ` +
+      `Use it to ADD a missing join, or to DEMOTE an over-eager deterministic rule by re-proposing the same ` +
+      `from/to/relation/sourceField with confidence below ${DETERMINISTIC_CONFIDENCE} (fuzzy: recorded for ` +
+      `traversal, never auto-merges clusters).` +
+      shape,
+    parameters: {
+      type: "object",
+      properties: {
+        from: { type: "string", description: `Source node type. One of: ${types}.` },
+        to: { type: "string", description: `Target node type. One of: ${types}.` },
+        relation: { type: "string", description: 'Semantic relation name, e.g. "placed_by" / "settles".' },
+        sourceField: { type: "string", description: "Key in the source node's links whose values point at the target." },
+        confidence: { type: "number", description: `1 = deterministic (clusters); <${DETERMINISTIC_CONFIDENCE} = fuzzy (edge only). Must be in (0, 1].` },
+        cardinality: { type: "string", description: 'Optional: "1:1" | "1:N" | "N:N".' },
+      },
+      required: ["from", "to", "relation", "sourceField", "confidence"],
+      additionalProperties: false,
+    },
+    execute: async (args) => {
+      const candidate: Record<string, unknown> = {
+        from: args.from,
+        to: args.to,
+        relation: args.relation,
+        sourceField: args.sourceField,
+        confidence: args.confidence,
+        ...(args.cardinality !== undefined ? { cardinality: args.cardinality } : {}),
+      };
+      const validated = validateStoredEdge(candidate, manifest.nodeTypes);
+      if (!validated.ok) return { ok: false, reason: validated.reason };
+      const edge = validated.edge;
+      const result = await onTuneEdge(edge);
+      const preview =
+        `On the next graph build this fact merges into the manifest (via manifestOverrideFromConfig → mergeManifest) ` +
+        `as: ${edge.from} —${edge.relation}→ ${edge.to}, resolved from links.${edge.sourceField}, confidence ${edge.confidence} ` +
+        `(${edge.confidence < DETERMINISTIC_CONFIDENCE ? "fuzzy — recorded for traversal, not auto-merged" : "deterministic — participates in clustering"}). ` +
+        `It does NOT change the live in-memory graph now; rebuild to apply.`;
+      return {
+        ok: true,
+        edge,
+        preview,
+        committed: result.committed,
+        ...(result.note !== undefined ? { note: result.note } : {}),
+      };
+    },
+  };
+
+  // Phase 2 — detect → propose. Runs the invariant checks and enriches each finding
+  // with a remedy; committable ones carry an `edgeFact` ready for `tune_edge`.
+  const diagnoseTool: Tool = {
+    name: `${p}diagnose`,
+    description:
+      `Diagnose the graph's structural health and propose fixes: runs the same invariant checks as ${p}graph_health ` +
+      `and returns each finding ENRICHED with a remedy. A remedy is either a ready-to-commit edgeFact you pass to ` +
+      `${p}tune_edge (e.g. demoting a rule that falsely merged two distinct entities), or advisory guidance for ` +
+      `problems no additive edge-fact can fix (duplicate projections, stale/dangling references). Detect → propose → ` +
+      `repair, all derived from your manifest.` +
+      shape,
+    parameters: { type: "object", properties: {}, additionalProperties: false },
+    execute: () => {
+      const g = resolveGraph(graph);
+      const health = graphHealth(g, opts);
+      const findings: EnrichedFinding[] = health.invariants.map((f) => ({
+        ...f,
+        remedy: remedyForFinding(f, g, manifest, opts),
+      }));
+      return {
+        nodeCount: health.nodeCount,
+        edgeCount: health.edgeCount,
+        clusterCount: health.clusterCount,
+        findingCount: findings.length,
+        committable: findings.filter((f) => f.remedy.kind === "tune_edge").length,
+        findings,
+      };
+    },
+  };
+
+  return [...baseTools, tuneEdgeTool, diagnoseTool];
 }

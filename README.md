@@ -114,6 +114,28 @@ const aiTools = Object.fromEntries(
 
 Pass `() => graph` instead of a static graph if your data refreshes between calls.
 
+## Repair the graph — detect → propose → commit
+
+The four tools above are read-only. Give `createToolkit` an `onTuneEdge` **persistence sink** and it additionally emits two tools that turn the graph into a *detect → propose → repair* loop — without weave ever owning storage:
+
+```ts
+const tools = createToolkit(graph, manifest, {
+  identityTypes: ["customer"],            // unique-entity types (powers identity_collision)
+  // The sink: weave hands you a VALIDATED EdgeRule; you persist it however you like
+  // (a config row, a KV value, a weave.edge.* JSON blob) and report the outcome.
+  onTuneEdge: async (edge) => {
+    await db.put(`weave.edge.${edge.relation}`, edge);
+    return { committed: true };
+  },
+});
+// → read_entity · find_entity · expand_entity · graph_health · tune_edge · diagnose
+```
+
+- **`diagnose`** runs the same invariant checks as `graph_health` and returns each finding **enriched with a remedy**. A finding carries a ready-to-commit `edgeFact` only when *simulating* that fix — rebuild with the rule demoted (preserving non-manifest `extraEdges`), re-check the invariants — provably clears it, so a collision actually caused by an `extraEdges` edge is never "fixed" by a no-op demotion. Findings an additive edge-fact can't honestly fix (`duplicate_ref` = dedupe at projection, `edge_dangling_endpoint` = a stale/unloaded reference, or an unattributable collision) come back as `advisory` guidance with no `edgeFact`.
+- **`tune_edge`** takes an edge proposal, **validates it via `parseStoredEdge`** (rejecting confidence outside `(0, 1]` and unknown node types) *before* calling your sink, then persists it. The fact does **not** mutate the live in-memory graph — it merges into the manifest on the **next build** via `manifestOverrideFromConfig` → `mergeManifest`. Use it to add a missing join, or to demote an over-eager deterministic rule (re-propose the same `from/to/relation/sourceField` with a lower confidence — `mergeManifest` overrides by that key).
+
+`diagnose` proposes, `tune_edge` commits: hand a finding's `edgeFact` straight to `tune_edge`. When `onTuneEdge` is **absent**, `createToolkit` returns exactly the four read-only tools — existing consumers are unaffected.
+
 ## Wire it with a coding agent
 
 weave ships an **agent skill** at [`skills/weave/SKILL.md`](skills/weave/SKILL.md). Point a coding agent (Claude Code, etc.) at it and it will inventory your sources, write the `defineSource`s + manifest against your real schema, verify the joins with `graphHealth`, and wire the toolkit into your agent framework — applying the one modeling rule (deterministic vs. fuzzy edges) so you don't false-merge.
@@ -187,7 +209,7 @@ npx tsx examples/agent-360/run.ts
 | `buildGraph(nodes, manifest, opts?)` | The core builder (use directly if you project nodes yourself). |
 | `readEntity(graph, seed, opts?)` | One entity + its whole cluster, grouped by type — the agent read. |
 | `clusterOf(graph, ref)` / `expand(graph, ref, opts?)` | Cluster membership / bounded traversal. |
-| `createToolkit(graph, manifest, opts?)` | Generate `read_entity` / `find_entity` / `expand_entity` / `graph_health` tools. |
+| `createToolkit(graph, manifest, opts?)` | Generate `read_entity` / `find_entity` / `expand_entity` / `graph_health` tools — plus `tune_edge` / `diagnose` when `opts.onTuneEdge` is given. |
 | `graphHealth(graph, opts?)` / `checkGraphInvariants(...)` | Pure health report + structural invariants. |
 | `compileGraph(inputs, manifest, opts?)` | Build the graph *and* a diagnostics report (source counts, duplicate refs, unresolved links). |
 | `diagnoseGraphInputs(nodes, manifest, opts?)` / `projectSourceInputs(inputs)` | Diagnose pre-projected nodes / just project sources to nodes. |

@@ -31,25 +31,45 @@ function asString(v: unknown): string | null {
   return typeof v === "string" && v.trim() ? v.trim() : null;
 }
 
+/** The outcome of validating a stored value: the parsed edge, or a human reason it
+ *  was rejected. `parseStoredEdge` is the boolean-style wrapper; callers that want to
+ *  tell a user WHY (e.g. an agent tool) read `reason` directly. */
+export type StoredEdgeValidation = { ok: true; edge: EdgeRule } | { ok: false; reason: string };
+
+/**
+ * Validate one stored value into an `EdgeRule` or an explained rejection. `from`/`to`
+ * must be members of `nodeTypes`; `relation` + `sourceField` must be non-empty;
+ * `confidence` must be in (0, 1]. This is the single source of truth for the rules —
+ * {@link parseStoredEdge} wraps it, so the two can never drift.
+ */
+export function validateStoredEdge(value: unknown, nodeTypes: readonly NodeType[]): StoredEdgeValidation {
+  if (!value || typeof value !== "object") return { ok: false, reason: "Edge proposal must be an object." };
+  const r = value as Record<string, unknown>;
+  const fields = { from: asString(r.from), to: asString(r.to), relation: asString(r.relation), sourceField: asString(r.sourceField) };
+  const missing = (Object.keys(fields) as (keyof typeof fields)[]).filter((k) => !fields[k]);
+  if (missing.length) return { ok: false, reason: `Missing or empty required field(s): ${missing.join(", ")}.` };
+  const from = fields.from as string;
+  const to = fields.to as string;
+  // Node-type guardrail: never let a stored record introduce a new entity kind.
+  const unknownTypes = [from, to].filter((t) => !nodeTypes.includes(t));
+  if (unknownTypes.length)
+    return { ok: false, reason: `Unknown node type(s): ${unknownTypes.map((t) => JSON.stringify(t)).join(", ")}. Known types: ${nodeTypes.join(", ")}.` };
+  const confidence = typeof r.confidence === "number" && Number.isFinite(r.confidence) ? r.confidence : NaN;
+  if (!(confidence > 0 && confidence <= 1)) return { ok: false, reason: `confidence must be a number in (0, 1]; got ${JSON.stringify(r.confidence)}.` };
+  const cardinality = r.cardinality === "1:1" || r.cardinality === "1:N" || r.cardinality === "N:N" ? r.cardinality : undefined;
+  return {
+    ok: true,
+    edge: { from, to, relation: fields.relation as string, sourceField: fields.sourceField as string, confidence, ...(cardinality ? { cardinality } : {}) },
+  };
+}
+
 /**
  * Validate one stored value into an `EdgeRule`, or `null` if malformed / out of
- * scope. `from`/`to` must be members of `nodeTypes`; `relation` + `sourceField` must
- * be non-empty; `confidence` must be in (0, 1].
+ * scope. A thin boolean-style wrapper over {@link validateStoredEdge}.
  */
 export function parseStoredEdge(value: unknown, nodeTypes: readonly NodeType[]): EdgeRule | null {
-  if (!value || typeof value !== "object") return null;
-  const r = value as Record<string, unknown>;
-  const from = asString(r.from);
-  const to = asString(r.to);
-  const relation = asString(r.relation);
-  const sourceField = asString(r.sourceField);
-  if (!from || !to || !relation || !sourceField) return null;
-  // Node-type guardrail: never let a stored record introduce a new entity kind.
-  if (!nodeTypes.includes(from) || !nodeTypes.includes(to)) return null;
-  const confidence = typeof r.confidence === "number" && Number.isFinite(r.confidence) ? r.confidence : NaN;
-  if (!(confidence > 0 && confidence <= 1)) return null;
-  const cardinality = r.cardinality === "1:1" || r.cardinality === "1:N" || r.cardinality === "N:N" ? r.cardinality : undefined;
-  return { from, to, relation, sourceField, confidence, ...(cardinality ? { cardinality } : {}) };
+  const result = validateStoredEdge(value, nodeTypes);
+  return result.ok ? result.edge : null;
 }
 
 /**

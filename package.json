@@ -1,6 +1,6 @@
 {
   "name": "@shashwatjain511/weave",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Weave heterogeneous records from databases, APIs, and files into one connected, traversable graph — declaratively, in pure TypeScript, with zero infrastructure. Built so agents can read across sources as one thing.",
   "type": "module",
   "license": "MIT",
