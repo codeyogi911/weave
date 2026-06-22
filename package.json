@@ -20,13 +20,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/codeyogi911/ops-room-2.git",
-    "directory": "oss/weave"
+    "url": "git+https://github.com/codeyogi911/weave.git"
   },
   "bugs": {
-    "url": "https://github.com/codeyogi911/ops-room-2/issues"
+    "url": "https://github.com/codeyogi911/weave/issues"
   },
-  "homepage": "https://github.com/codeyogi911/ops-room-2/tree/main/oss/weave#readme",
+  "homepage": "https://github.com/codeyogi911/weave#readme",
   "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
