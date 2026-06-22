@@ -1,14 +1,18 @@
 {
   "name": "@shashwatjain511/weave",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Weave heterogeneous records from databases, APIs, and files into one connected, traversable graph — declaratively, in pure TypeScript, with zero infrastructure. Built so agents can read across sources as one thing.",
   "type": "module",
   "license": "MIT",
+  "author": "Shashwat Jain",
   "keywords": [
     "graph",
-    "entity-resolution",
+    "ontology",
     "knowledge-graph",
+    "business-graph",
+    "entity-resolution",
     "agents",
+    "mcp",
     "ai",
     "data-integration",
     "connected-components",
@@ -16,12 +20,13 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/codeyogi911/weave.git"
+    "url": "git+https://github.com/codeyogi911/ops-room-2.git",
+    "directory": "oss/weave"
   },
   "bugs": {
-    "url": "https://github.com/codeyogi911/weave/issues"
+    "url": "https://github.com/codeyogi911/ops-room-2/issues"
   },
-  "homepage": "https://github.com/codeyogi911/weave#readme",
+  "homepage": "https://github.com/codeyogi911/ops-room-2/tree/main/oss/weave#readme",
   "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

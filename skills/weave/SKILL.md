@@ -107,7 +107,7 @@ Pass `() => graph` (a getter) if the data refreshes between calls. Each tool is 
 // Vercel AI SDK
 import { tool } from "ai";
 const aiTools = Object.fromEntries(
-  tools.map((t) => [t.name, tool({ description: t.description, parameters: t.parameters, execute: t.execute })]),
+  tools.map((t) => [t.name, tool({ description: t.description, inputSchema: t.parameters, execute: t.execute })]),
 );
 
 // MCP: register each as a tool with inputSchema = t.parameters and handler = t.execute.

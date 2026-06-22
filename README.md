@@ -108,7 +108,7 @@ Each tool is `{ name, description, parameters (JSON Schema), execute }` — a sh
 ```ts
 import { tool } from "ai";
 const aiTools = Object.fromEntries(
-  tools.map((t) => [t.name, tool({ description: t.description, parameters: t.parameters, execute: t.execute })]),
+  tools.map((t) => [t.name, tool({ description: t.description, inputSchema: t.parameters, execute: t.execute })]),
 );
 ```
 
@@ -134,6 +134,31 @@ Then ask: *"wire weave onto my Postgres orders + Stripe payments."*
 - **Confidence is first-class — the "black-hole" guard.** An edge at confidence < 1 (a fuzzy match, a shared dimension like a product catalog) is recorded for traversal but **never merges clusters**. One bad fuzzy match can't collapse your whole graph into a single blob. Feed verdicts from your own matcher/ML model as `extraEdges` with their true confidence and provenance.
 - **Joins can be tuned at runtime, stored as data.** `manifestOverrideFromConfig` reads per-tenant/-deployment edge rules out of config records and `mergeManifest`s them onto your shipped default — retune one hop without forking the grammar. Stored rules can't introduce new node types (the guardrail).
 - **Health is a pure report.** `graphHealth` gives counts by type/relation, the cluster-size distribution, isolated nodes, fuzzy-edge count, and structural invariants (`duplicate_ref`, `edge_dangling_endpoint`, and an optional `identity_collision` for the types you name as unique identities).
+
+## Diagnostics — see *why* a join didn't draw
+
+`buildGraph` is deterministic but quiet: an edge that doesn't resolve simply isn't there. When you're wiring a new source or chasing a missing link, the **diagnostics layer** (`compile.ts`) tells you what the builder saw — without re-implementing matching. It runs the *same* projection and link-resolution pass `buildGraph` uses, so an "unresolved" link reported here is exactly an edge the builder couldn't draw, never a divergent second opinion.
+
+```ts
+import { compileGraph } from "@shashwatjain511/weave";
+
+const { graph, nodes, diagnostics } = compileGraph(
+  [
+    { source: orders,   records: orderRows },
+    { source: payments, records: paymentRows },
+  ],
+  manifest,
+);
+```
+
+`compileGraph` returns the built `graph`, the projected `nodes`, and a `diagnostics` report:
+
+- **`sourceCounts`** — per source: `nodeCount` and `nodesByType` (plus the source `kind`). Did each adapter actually project what you expected?
+- **`nodesByType`** — the global node-type histogram across all sources.
+- **`duplicateRefs`** — refs projected more than once (two records collapsed to the same `<type>:<provider>:<id>` URN). A non-empty list usually means a wrong `id` selector.
+- **`unresolvedLinks`** — every link value that matched *no* target node, with the `from` ref, `fromType`, `source` provenance, the `relation` / `sourceField` / `targetType` it tried, and the literal `value` that missed. This is your "why isn't this edge here?" answer — a typo'd key, a normalization gap, or a target node that was never loaded. Bounded by `maxUnresolvedLinks` (default 50) so a broken join can't flood the report.
+
+Reach for the pieces directly when you don't need the whole bundle: `projectSourceInputs(inputs)` to just get the nodes, or `diagnoseGraphInputs(nodes, manifest, opts?)` to diagnose nodes you projected yourself. All pure — records in, report out; no I/O.
 
 ## What weave is *not*
 
@@ -164,6 +189,8 @@ npx tsx examples/agent-360/run.ts
 | `clusterOf(graph, ref)` / `expand(graph, ref, opts?)` | Cluster membership / bounded traversal. |
 | `createToolkit(graph, manifest, opts?)` | Generate `read_entity` / `find_entity` / `expand_entity` / `graph_health` tools. |
 | `graphHealth(graph, opts?)` / `checkGraphInvariants(...)` | Pure health report + structural invariants. |
+| `compileGraph(inputs, manifest, opts?)` | Build the graph *and* a diagnostics report (source counts, duplicate refs, unresolved links). |
+| `diagnoseGraphInputs(nodes, manifest, opts?)` / `projectSourceInputs(inputs)` | Diagnose pre-projected nodes / just project sources to nodes. |
 | `manifestOverrideFromConfig(records, base, prefix?)` | Read runtime-tuned edges from stored config. |
 
 ## License
