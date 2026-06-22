@@ -1,6 +1,19 @@
-# weave — Vision & Charter
+# weave
 
-> The connective tissue between every data source and every agent.
+**weave is a meta graph: a single semantic graph layered _over_ your existing systems — Shopify, Zoho, databases, MCPs — that unifies what your business _means_ without moving where your data _lives_.**
+
+Every system you already run is a little graph: Shopify links orders to customers to products, Zoho links deals to contacts to companies, each database and MCP exposes its own entities and relationships. weave sits one level up and maps all of them onto one shared model. It is a graph _of_ graphs — that is what "meta" means here: above, about, and across the systems it unifies.
+
+The lakehouse pitch is _mega_: move all your data into one giant store and query it there. weave's bet is _meta_: for small businesses — and honestly most enterprises — the data never moves. It lives where the work happens, scattered across a dozen tools. So weave does not centralize storage; it centralizes meaning. The territories stay where they are; weave owns the map.
+
+And the map is built for one reader above all: **the agent**. Six raw connectors drown an agent in incompatible shapes. One legible meta graph — with great tool affordance, provenance on every fact, and facades it can tune — lets an agent find what it needs, understand it, traverse the whole business, and repair the graph when a source breaks. weave is agent-native by construction.
+
+## Vocabulary
+
+- **Sources** — the systems that own the data (Shopify, Zoho, a database, an MCP). weave reads from them; it never owns them.
+- **Meta graph** — weave's unifying semantic layer over the sources: one ontology, one model of the business.
+- **Facts** — edges in the meta graph that carry provenance and bounded confidence, so the agent knows _where_ a relationship came from and _how much_ to trust it.
+- **Facades** — purpose-shaped views an agent builds and tunes _on_ the meta graph. When a source breaks or the model drifts, the agent reshapes a facade over the source of truth instead of forking it. Self-healing lives here.
 
 ## The problem: every business is a pile of disconnected systems
 
