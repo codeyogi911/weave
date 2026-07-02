@@ -15,6 +15,7 @@
 
 import { buildGraph, expand, indexNodesByType, resolveManifestLinks } from "./build.js";
 import { validateStoredEdge } from "./config.js";
+import { impairedLegsForType, resolveCoverage, type SourceCoverage } from "./coverage.js";
 import { checkGraphInvariants, graphHealth, type GraphHealthOptions, type InvariantFinding } from "./health.js";
 import { DETERMINISTIC_CONFIDENCE, mergeManifest } from "./manifest.js";
 import type { EdgeRule, Graph, Manifest } from "./types.js";
@@ -32,14 +33,26 @@ export type MaybePromise<T> = T | Promise<T>;
  */
 export type TuneEdgeSink = (edge: EdgeRule) => MaybePromise<{ committed: boolean; note?: string }>;
 
+/**
+ * Consumer-supplied re-sweep executor. Weave never does I/O: when a diagnosis says a
+ * source leg failed or truncated, the agent hands the leg's id back here and YOU
+ * re-run that read (and rebuild / refresh whatever the graph is served from). Return
+ * whether the re-sweep ran and, ideally, how it went — the note is surfaced verbatim
+ * to the agent so it can decide whether to diagnose again.
+ */
+export type ResweepSink = (target: { source: string }) => MaybePromise<{ ok: boolean; note?: string }>;
+
 /** What `diagnose` attaches to each invariant finding: a committable fix or advice. */
 export interface Remedy {
-  /** `tune_edge` → `edgeFact` is a ready-to-commit proposal; `advisory` → manual fix. */
-  kind: "tune_edge" | "advisory";
+  /** `tune_edge` → `edgeFact` is a ready-to-commit proposal; `resweep` →
+   *  `resweepTarget` names a source leg to re-run; `advisory` → manual fix. */
+  kind: "tune_edge" | "resweep" | "advisory";
   /** Concrete, human-readable guidance on how to repair this finding. */
   note: string;
   /** A proposal that passes `parseStoredEdge` and can be handed straight to `tune_edge`. */
   edgeFact?: EdgeRule;
+  /** A target that can be handed straight to `resweep_source`. */
+  resweepTarget?: { source: string };
 }
 
 /** An invariant finding enriched with a proposed remedy — what `diagnose` returns. */
@@ -76,6 +89,14 @@ export interface ToolkitOptions extends GraphHealthOptions {
    * byte-for-byte unaffected.
    */
   onTuneEdge?: TuneEdgeSink;
+  /**
+   * Re-sweep executor for failed/truncated source legs. When provided (alongside
+   * `coverage`), the toolkit additionally emits `resweep_source`, and `diagnose`
+   * attaches committable resweep remedies to coverage findings — and to structural
+   * findings it can attribute to an impaired leg. Reads only re-run reads, so
+   * consumers can safely expose this without a write-approval gate.
+   */
+  onResweep?: ResweepSink;
 }
 
 /** A live graph, or a function returning one (so tools see fresh data each call). */
@@ -174,13 +195,53 @@ function verifiedDemotion(
   return cleared ? demoted : null;
 }
 
+/** Which repair executors the consumer wired — decides whether a remedy can be
+ *  committable (`tune_edge` / `resweep`) or must stay advisory. */
+interface RemedyCapabilities {
+  resweep: boolean;
+}
+
+/** The URN convention (`<type>:<provider>:<id>`) read back: the node type a ref
+ *  implies, for attributing a missing node to the source leg that feeds its type. */
+function typeOfRef(ref: string): string {
+  return ref.split(":")[0] ?? "";
+}
+
 /** Propose a remedy for one invariant finding. A finding is committable (`kind:
  *  "tune_edge"` with an `edgeFact`) ONLY when SIMULATING that edge-fact provably clears
  *  it — never on a heuristic match — so a collision actually caused by an `extraEdges`
- *  edge is never "fixed" by a no-op rule demotion. Everything else is honest advisory. */
-function remedyForFinding(finding: InvariantFinding, graph: Graph, manifest: Manifest, opts: GraphHealthOptions): Remedy {
+ *  edge is never "fixed" by a no-op rule demotion. A coverage finding (or a structural
+ *  finding attributable to an impaired source leg) proposes a `resweep` when the
+ *  consumer wired one. Everything else is honest advisory. */
+function remedyForFinding(
+  finding: InvariantFinding,
+  graph: Graph,
+  manifest: Manifest,
+  opts: GraphHealthOptions,
+  coverage: readonly SourceCoverage[] | undefined,
+  can: RemedyCapabilities,
+): Remedy {
   const threshold = opts.clusterThreshold ?? DETERMINISTIC_CONFIDENCE;
   switch (finding.code) {
+    case "source_error":
+    case "source_truncated": {
+      const target = finding.source ? { source: finding.source } : undefined;
+      if (can.resweep && target) {
+        return {
+          kind: "resweep",
+          note:
+            `${finding.message} Re-running this source's read repairs the graph if the failure was transient ` +
+            `(rate limit, timeout, cap): pass this remedy's resweepTarget to resweep_source, then diagnose again.`,
+          resweepTarget: target,
+        };
+      }
+      return {
+        kind: "advisory",
+        note:
+          `${finding.message} Re-run the source's read (no resweep executor is wired here) and rebuild; ` +
+          `until then treat counts for ${finding.refs.join(", ")} as floors.`,
+      };
+    }
     case "identity_collision": {
       for (const rule of candidateRulesForCollision(graph, manifest, finding, threshold)) {
         const edgeFact = verifiedDemotion(graph, manifest, finding, rule, threshold, opts);
@@ -206,7 +267,33 @@ function remedyForFinding(finding: InvariantFinding, graph: Graph, manifest: Man
           `over-merges ${finding.refs.join(", ")} (or the external matcher that emitted the edge) by hand.`,
       };
     }
-    case "edge_dangling_endpoint":
+    case "edge_dangling_endpoint": {
+      // Attribution: if a missing endpoint's type is fed by a leg that errored or
+      // truncated, the node isn't absent from reality — its READ failed. The honest
+      // fix is re-sweeping that leg, not hand-reviewing references.
+      const impaired = new Map<string, SourceCoverage>();
+      for (const ref of finding.refs) {
+        for (const leg of impairedLegsForType(coverage ?? [], typeOfRef(ref))) {
+          impaired.set(leg.source, leg);
+        }
+      }
+      const legs = [...impaired.values()];
+      if (legs.length) {
+        const legNames = legs.map((l) => `"${l.source}"`).join(", ");
+        const first = legs[0]!;
+        const note =
+          `${finding.refs.length} edge endpoint(s) reference nodes whose types are fed by impaired source ` +
+          `leg(s) ${legNames} — the nodes likely exist but their read failed or truncated, so this is a ` +
+          `coverage artifact, not a stale reference.`;
+        if (can.resweep) {
+          return {
+            kind: "resweep",
+            note: `${note} Re-sweep the impaired leg(s) (this remedy targets ${JSON.stringify(first.source)}; repeat for the rest), then diagnose again.`,
+            resweepTarget: { source: first.source },
+          };
+        }
+        return { kind: "advisory", note: `${note} Re-run those reads and rebuild before treating the references as stale.` };
+      }
       return {
         kind: "advisory",
         note:
@@ -214,6 +301,7 @@ function remedyForFinding(finding: InvariantFinding, graph: Graph, manifest: Man
           `project. No additive edge-fact can fix this: re-run the missing source's projection, or drop the stale ` +
           `reference at projection. Dangling endpoint(s): ${finding.refs.join(", ")}.`,
       };
+    }
     case "duplicate_ref":
       return {
         kind: "advisory",
@@ -322,13 +410,15 @@ export function createToolkit(graph: GraphSource, manifest: Manifest, opts: Tool
 
   const baseTools = [readEntityTool, findTool, expandTool, healthTool];
 
-  // Read-only by default: no persistence sink → exactly the four read tools above.
+  // Read-only by default: no repair executor → exactly the four read tools above.
   const onTuneEdge = opts.onTuneEdge;
-  if (!onTuneEdge) return baseTools;
+  const onResweep = opts.onResweep;
+  if (!onTuneEdge && !onResweep) return baseTools;
 
   // Phase 1 — repair affordance. Validates a proposed join against the manifest, then
   // persists it through the consumer's sink. The fact applies on the NEXT build.
-  const tuneEdgeTool: Tool = {
+  const tuneEdgeTool: Tool | null = onTuneEdge
+    ? {
     name: `${p}tune_edge`,
     description:
       `Propose a tuned join (an edge rule) for this graph: declare that nodes of one type link to another via a ` +
@@ -378,37 +468,88 @@ export function createToolkit(graph: GraphSource, manifest: Manifest, opts: Tool
         ...(result.note !== undefined ? { note: result.note } : {}),
       };
     },
-  };
+  }
+    : null;
 
-  // Phase 2 — detect → propose. Runs the invariant checks and enriches each finding
-  // with a remedy; committable ones carry an `edgeFact` ready for `tune_edge`.
+  // Phase 2 — detect → propose. Runs the invariant + coverage checks and enriches
+  // each finding with a remedy; committable ones carry an `edgeFact` ready for
+  // `tune_edge` or a `resweepTarget` ready for `resweep_source`.
   const diagnoseTool: Tool = {
     name: `${p}diagnose`,
     description:
-      `Diagnose the graph's structural health and propose fixes: runs the same invariant checks as ${p}graph_health ` +
-      `and returns each finding ENRICHED with a remedy. A remedy is either a ready-to-commit edgeFact you pass to ` +
-      `${p}tune_edge (e.g. demoting a rule that falsely merged two distinct entities), or advisory guidance for ` +
-      `problems no additive edge-fact can fix (duplicate projections, stale/dangling references). Detect → propose → ` +
-      `repair, all derived from your manifest.` +
+      `Diagnose the graph's health and propose fixes: runs the same invariant + coverage checks as ` +
+      `${p}graph_health and returns each finding ENRICHED with a remedy. A remedy is a ready-to-commit edgeFact ` +
+      `for ${p}tune_edge (e.g. demoting a rule that falsely merged two distinct entities), a resweepTarget for ` +
+      `${p}resweep_source (a source read failed or truncated, so the graph is partial), or advisory guidance for ` +
+      `problems no tool can fix (duplicate projections, genuinely stale references). Detect → propose → repair, ` +
+      `all derived from your manifest.` +
       shape,
     parameters: { type: "object", properties: {}, additionalProperties: false },
     execute: () => {
       const g = resolveGraph(graph);
       const health = graphHealth(g, opts);
+      const coverage = health.coverage;
+      const can: RemedyCapabilities = { resweep: Boolean(onResweep) };
       const findings: EnrichedFinding[] = health.invariants.map((f) => ({
         ...f,
-        remedy: remedyForFinding(f, g, manifest, opts),
+        remedy: remedyForFinding(f, g, manifest, opts, coverage, can),
       }));
       return {
         nodeCount: health.nodeCount,
         edgeCount: health.edgeCount,
         clusterCount: health.clusterCount,
+        ...(health.coverageComplete !== undefined ? { coverageComplete: health.coverageComplete } : {}),
         findingCount: findings.length,
-        committable: findings.filter((f) => f.remedy.kind === "tune_edge").length,
+        committable: findings.filter((f) => f.remedy.kind !== "advisory").length,
         findings,
       };
     },
   };
 
-  return [...baseTools, tuneEdgeTool, diagnoseTool];
+  // Phase 3 — re-sweep. Reads only re-run reads, so this needs no write-approval
+  // gate; the consumer's sink owns what "re-sweep" means (re-fetch, rebuild,
+  // refresh caches).
+  const resweepTool: Tool | null = onResweep
+    ? {
+        name: `${p}resweep_source`,
+        description:
+          `Re-run one source's read after a failed or truncated sweep, then rebuild the graph from fresh data. ` +
+          `Use when ${p}diagnose reports a source_error / source_truncated finding (or attributes dangling ` +
+          `references to an impaired source): pass the finding's remedy.resweepTarget.source. Re-sweeping only ` +
+          `re-runs reads — it never writes to any source. Afterwards run ${p}diagnose again to verify the leg ` +
+          `came back whole.`,
+        parameters: {
+          type: "object",
+          properties: {
+            source: { type: "string", description: 'The source-leg id from a diagnose remedy, e.g. "zoho_inventory.invoices".' },
+          },
+          required: ["source"],
+          additionalProperties: false,
+        },
+        execute: async (args) => {
+          const source = String(args.source);
+          const known = resolveCoverage(opts.coverage);
+          if (known && !known.some((c) => c.source === source)) {
+            return {
+              ok: false,
+              reason: `Unknown source ${JSON.stringify(source)}. Known source legs: ${known.map((c) => c.source).join(", ") || "(none reported)"}.`,
+            };
+          }
+          const result = await onResweep({ source });
+          return {
+            ok: result.ok,
+            source,
+            ...(result.note !== undefined ? { note: result.note } : {}),
+            followUp: `Run ${p}diagnose again to confirm the leg came back whole.`,
+          };
+        },
+      }
+    : null;
+
+  return [
+    ...baseTools,
+    ...(tuneEdgeTool ? [tuneEdgeTool] : []),
+    diagnoseTool,
+    ...(resweepTool ? [resweepTool] : []),
+  ];
 }
