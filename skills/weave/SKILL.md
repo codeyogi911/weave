@@ -113,6 +113,22 @@ const aiTools = Object.fromEntries(
 // MCP: register each as a tool with inputSchema = t.parameters and handler = t.execute.
 ```
 
+## 6. Close the loop — coverage + self-healing (production)
+
+Real source reads fail (rate limits, timeouts, row caps), and a graph built from partial reads lies by omission. In production, report **coverage** — how each read went — and wire the repair executors, so the agent can *detect and fix* a partial graph instead of reasoning over one:
+
+```ts
+const tools = createToolkit(() => graph, manifest, {
+  identityTypes: ["customer"],
+  coverage: () => lastSweep.coverage,   // SourceCoverage[]: { source, types, swept, count?, truncated?, errors? }
+  onTuneEdge: async (edge) => persistEdgeFact(edge),        // grammar repair (gate writes behind approval)
+  onResweep:  async ({ source }) => resweepLeg(source),     // data repair (reads only — safe unattended)
+});
+// → the four read tools · tune_edge · diagnose · resweep_source
+```
+
+`diagnose` returns findings with remedies: an `edgeFact` (hand to `tune_edge` — a join is wrong for this deployment), a `resweepTarget` (hand to `resweep_source` — a read failed/truncated this sweep), or honest `advisory` text. Teach your agent the loop: **diagnose → apply the committable remedies → diagnose again**.
+
 ## Done-when checklist
 
 - [ ] One `defineSource` per system; `label` is the value others reference it by.
@@ -120,6 +136,7 @@ const aiTools = Object.fromEntries(
 - [ ] `graphHealth` shows zero error invariants and a sane cluster distribution.
 - [ ] `read_entity("<a real id/number>")` returns the expected cross-source cluster — and nothing from an unrelated entity.
 - [ ] Toolkit mapped into the host agent framework.
+- [ ] Production: coverage reported per source leg + `onResweep` wired, so a failed read is a diagnosable, agent-fixable finding — not a silently thin graph.
 
 ## Reference
 

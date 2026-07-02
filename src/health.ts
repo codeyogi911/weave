@@ -10,6 +10,7 @@
  * looks identical wherever it shows up.
  */
 
+import { checkCoverage, coverageComplete, resolveCoverage, type CoverageSource, type SourceCoverage } from "./coverage.js";
 import { DETERMINISTIC_CONFIDENCE } from "./manifest.js";
 import type { Graph } from "./types.js";
 
@@ -20,11 +21,18 @@ export interface ClusterSummary {
 }
 
 export interface InvariantFinding {
-  /** Stable code so an asserter matches a CLASS of failure, not a message string. */
-  code: "duplicate_ref" | "edge_dangling_endpoint" | "identity_collision";
+  /** Stable code so an asserter matches a CLASS of failure, not a message string.
+   *  `duplicate_ref` / `edge_dangling_endpoint` / `identity_collision` are structural;
+   *  `source_error` / `source_truncated` are coverage findings (a read failed or
+   *  capped, so the graph is partial — see coverage.ts). */
+  code: "duplicate_ref" | "edge_dangling_endpoint" | "identity_collision" | "source_error" | "source_truncated";
   severity: "error" | "warn";
   message: string;
+  /** Structural findings: the node refs involved. Coverage findings: the affected
+   *  node TYPES (the leg's `types`). */
   refs: string[];
+  /** Coverage findings only: the source-leg id a resweep can act on. */
+  source?: string;
 }
 
 export interface GraphHealth {
@@ -45,6 +53,11 @@ export interface GraphHealth {
   /** A bounded sample of isolated nodes for spot-checking against the real source. */
   isolatedSample: { ref: string; type: string; label: string }[];
   invariants: InvariantFinding[];
+  /** Present when the consumer reported coverage: the per-leg read outcomes. */
+  coverage?: SourceCoverage[];
+  /** Present when coverage was reported: every attempted leg came back whole. When
+   *  `false`, treat counts as floors and structural findings with suspicion. */
+  coverageComplete?: boolean;
 }
 
 export interface GraphHealthOptions {
@@ -62,6 +75,13 @@ export interface GraphHealthOptions {
    * Empty (default) = no identity invariant.
    */
   identityTypes?: string[];
+  /**
+   * How each source read went (see coverage.ts) — a report or a thunk returning one.
+   * When provided, impaired legs surface as `source_error` / `source_truncated`
+   * findings and the report carries `coverage` + `coverageComplete`, so a thin graph
+   * is never mistaken for a small business.
+   */
+  coverage?: CoverageSource;
 }
 
 function bucket(size: number): string {
@@ -76,9 +96,11 @@ function tally(into: Record<string, number>, key: string): void {
   into[key] = (into[key] ?? 0) + 1;
 }
 
-/** The structural invariants that must hold on any correct graph. Pure. */
+/** The structural invariants that must hold on any correct graph, plus coverage
+ *  findings when a report was supplied. Pure. */
 export function checkGraphInvariants(graph: Graph, opts: GraphHealthOptions = {}): InvariantFinding[] {
-  const findings: InvariantFinding[] = [];
+  const coverage = resolveCoverage(opts.coverage);
+  const findings: InvariantFinding[] = coverage ? checkCoverage(coverage) : [];
   const identityTypes = new Set(opts.identityTypes ?? []);
 
   // 1. Duplicate refs — projection emitted the same entity twice (the Map dedups,
@@ -168,6 +190,9 @@ export function graphHealth(graph: Graph, opts: GraphHealthOptions = {}): GraphH
     if (isolatedSample.length < sampleSize) isolatedSample.push({ ref: n.ref, type: n.type, label: n.label });
   }
 
+  // Resolve a coverage thunk ONCE and hand the value down, so a live accessor isn't
+  // re-run by the invariant pass.
+  const coverage = resolveCoverage(opts.coverage);
   return {
     nodeCount: graph.nodes.length,
     edgeCount: graph.edges.length,
@@ -179,6 +204,7 @@ export function graphHealth(graph: Graph, opts: GraphHealthOptions = {}): GraphH
     largestClusters: [...summaries].sort((a, b) => b.size - a.size).slice(0, topN),
     isolatedByType,
     isolatedSample,
-    invariants: checkGraphInvariants(graph, opts),
+    invariants: checkGraphInvariants(graph, { ...opts, ...(coverage ? { coverage } : {}) }),
+    ...(coverage ? { coverage, coverageComplete: coverageComplete(coverage) } : {}),
   };
 }

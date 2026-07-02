@@ -136,6 +136,42 @@ const tools = createToolkit(graph, manifest, {
 
 `diagnose` proposes, `tune_edge` commits: hand a finding's `edgeFact` straight to `tune_edge`. When `onTuneEdge` is **absent**, `createToolkit` returns exactly the four read-only tools — existing consumers are unaffected.
 
+## Coverage — graphs over sources that fail
+
+A woven graph is only as complete as the reads that fed it, and real heterogeneous sources fail: APIs rate-limit, DBs time out, list endpoints cap at N rows. A graph built from partial inputs **lies by omission** — an invoice looks orphaned, a count looks small, when the truth is "the orders read failed". Coverage makes that distinction first-class. Report how each source read went, and health, diagnose, and the toolkit interpret the graph *through* it:
+
+```ts
+const coverage: SourceCoverage[] = [
+  { source: "shopify.orders",  types: ["order"],   swept: true, count: 412 },
+  { source: "zoho.invoices",   types: ["invoice"], swept: true, count: 0,
+    errors: ["HTTP 400: too many requests"] },              // failed → graph is partial
+  { source: "zoho.payments",   types: ["payment"], swept: false },  // skipped by design → fine
+];
+
+const health = graphHealth(graph, { coverage });
+health.coverageComplete;   // false — an attempted leg came back impaired
+health.invariants;         // includes { code: "source_error", source: "zoho.invoices", … }
+```
+
+Give `createToolkit` the coverage plus an `onResweep` **executor** and the loop closes at runtime — the agent can *fix* the class of breakage that actually happens in production, not just report it:
+
+```ts
+const tools = createToolkit(graph, manifest, {
+  coverage: () => latestSweep.coverage,       // live, alongside a live graph
+  onResweep: async ({ source }) => {          // you own what "re-sweep" means:
+    const outcome = await resweepLeg(source); // re-fetch that leg, rebuild, refresh caches
+    return { ok: outcome.complete, note: outcome.summary };
+  },
+});
+// → … · graph_health · diagnose · resweep_source
+```
+
+- **`diagnose`** now folds coverage findings (`source_error` / `source_truncated`) into the same findings channel as the structural invariants, each carrying a committable `resweepTarget`. It also **attributes** structural findings: a dangling reference whose node type is fed by an impaired leg is reported as a *coverage artifact* ("the read failed") rather than a stale reference to hand-review.
+- **`resweep_source`** hands a failed leg's id back to your executor. Re-sweeping only re-runs *reads*, so it needs no write-approval gate — an agent can heal a rate-limited graph unattended, then `diagnose` again to verify.
+- No coverage report → everything behaves exactly as before; `coverage`/`coverageComplete` simply don't appear.
+
+The rule of thumb: **`tune_edge` repairs the *grammar*** (a join that's wrong for this deployment), **`resweep_source` repairs the *data*** (a read that failed this sweep). Both are proposed by the same `diagnose`.
+
 ## Wire it with a coding agent
 
 weave ships an **agent skill** at [`skills/weave/SKILL.md`](skills/weave/SKILL.md). Point a coding agent (Claude Code, etc.) at it and it will inventory your sources, write the `defineSource`s + manifest against your real schema, verify the joins with `graphHealth`, and wire the toolkit into your agent framework — applying the one modeling rule (deterministic vs. fuzzy edges) so you don't false-merge.

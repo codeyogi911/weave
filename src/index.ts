@@ -5,6 +5,7 @@
  * cluster and traverse. Pure, dependency-free, runs anywhere JS runs.
  */
 export * from "./types.js";
+export * from "./coverage.js";
 export * from "./manifest.js";
 export * from "./build.js";
 export * from "./source.js";
