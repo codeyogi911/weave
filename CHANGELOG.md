@@ -5,6 +5,42 @@ All notable changes to `@shashwatjain511/weave` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-07-02
+
+### Added
+
+- **Source coverage — the honesty layer for graphs over unreliable sources**
+  (`coverage.ts`). A woven graph is only as complete as the reads that fed it, and
+  real heterogeneous sources fail: APIs rate-limit, DBs time out, list endpoints
+  cap. A graph built from partial inputs lies by omission — an invoice looks
+  orphaned when the truth is "the orders read failed". Proven against the Ops Room
+  reference deployment, where a rate-limited token exchange emptied whole sweep
+  legs and every diagnostic pointed at the graph instead of the read.
+  - **`SourceCoverage`** — per-leg read outcomes reported by the consumer (weave
+    stays pure: no I/O). `swept: false` means "skipped by design"; a *failed*
+    attempt is `swept: true` with `errors`.
+  - **`coverageComplete()`**, **`checkCoverage()`** (→ `source_error` /
+    `source_truncated` findings on the same channel as the structural invariants),
+    and **`impairedLegsForType()`** for attribution.
+  - **`graphHealth` / `checkGraphInvariants`** accept `coverage` (a report or a
+    live thunk); the health report then carries `coverage` + `coverageComplete`.
+- **`resweep_source` — the data-repair tool.** A new `onResweep` executor
+  (`({ source }) => MaybePromise<{ ok: boolean; note?: string }>`) closes the loop
+  at runtime: `diagnose` enriches coverage findings with a committable
+  `resweepTarget`, and **attributes** structural findings — a dangling reference
+  whose node type is fed by an impaired leg is reported as a *coverage artifact*,
+  not a stale reference. Re-sweeping only re-runs reads, so consumers can expose it
+  without a write-approval gate. `tune_edge` repairs the *grammar*;
+  `resweep_source` repairs the *data*.
+- Emission matrix: no sinks → the four read tools (unchanged); `onTuneEdge` →
+  `+tune_edge +diagnose`; `onResweep` → `+diagnose +resweep_source`; both → all 7.
+
+### Changed
+
+- `Remedy.kind` widens to `"tune_edge" | "resweep" | "advisory"` (additive);
+  `diagnose` output gains `coverageComplete` and counts resweep remedies in
+  `committable`. Absent coverage/sinks, behaviour is byte-for-byte 0.2.0.
+
 ## [0.2.0] - 2026-06-22
 
 ### Added
