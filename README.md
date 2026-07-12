@@ -245,8 +245,9 @@ npx tsx examples/agent-360/run.ts
 | `buildGraph(nodes, manifest, opts?)` | The core builder (use directly if you project nodes yourself). |
 | `readEntity(graph, seed, opts?)` | One entity + its whole cluster, grouped by type — the agent read. |
 | `clusterOf(graph, ref)` / `expand(graph, ref, opts?)` | Cluster membership / bounded traversal. |
-| `createToolkit(graph, manifest, opts?)` | Generate `read_entity` / `find_entity` / `expand_entity` / `graph_health` tools — plus `tune_edge` / `diagnose` when `opts.onTuneEdge` is given. |
-| `graphHealth(graph, opts?)` / `checkGraphInvariants(...)` | Pure health report + structural invariants. |
+| `createToolkit(graph, manifest, opts?)` | Generate `read_entity` / `find_entity` / `expand_entity` / `graph_health` tools — plus `tune_edge` / `diagnose` with `opts.onTuneEdge`, and `resweep_source` (+ resweep remedies in `diagnose`) with `opts.onResweep`. |
+| `graphHealth(graph, opts?)` / `checkGraphInvariants(...)` | Pure health report + structural invariants; pass `opts.coverage` for coverage findings + `coverageComplete`. |
+| `SourceCoverage` / `coverageComplete(coverage)` / `checkCoverage(coverage)` / `impairedLegsForType(coverage, type)` | Per-leg read outcomes and the honesty layer over them: completeness, `source_error`/`source_truncated` findings, and attribution of a node type to its impaired legs. |
 | `compileGraph(inputs, manifest, opts?)` | Build the graph *and* a diagnostics report (source counts, duplicate refs, unresolved links). |
 | `diagnoseGraphInputs(nodes, manifest, opts?)` / `projectSourceInputs(inputs)` | Diagnose pre-projected nodes / just project sources to nodes. |
 | `manifestOverrideFromConfig(records, base, prefix?)` | Read runtime-tuned edges from stored config. |
